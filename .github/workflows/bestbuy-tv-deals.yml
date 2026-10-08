@@ -1,0 +1,44 @@
+name: Best Buy large TV deal monitor
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Scan without opening issues
+        type: boolean
+        required: false
+        default: false
+  pull_request:
+    paths:
+      - "tv-deal-monitor/**"
+      - ".github/workflows/bestbuy-tv-deals.yml"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: bestbuy-tv-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test monitor
+        run: python -m unittest discover -s tv-deal-monitor/tests -v
+      - name: Scan deals and create issue alerts
+        if: github.event_name != 'pull_request'
+        working-directory: tv-deal-monitor
+        env:
+          BESTBUY_API_KEY: ${{ secrets.BESTBUY_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: python monitor.py
